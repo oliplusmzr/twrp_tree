@@ -1,0 +1,94 @@
+name: Generate TWRP Device Tree
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_url:
+        description: 'URL to the recovery/boot image (e.g., https://example.com/recovery.img)'
+        required: true
+        type: string
+      device_name:
+        description: 'Name of the device (e.g., mydevice)'
+        required: true
+        type: string
+      output_repo:
+        description: 'Target GitHub repository to push the device tree (e.g., username/repo_name). Leave blank to only save as artifact.'
+        required: false
+        type: string
+      output_branch:
+        description: 'Branch to push the device tree (e.g., master or twrp-11.0). Required if Output Repository is specified.'
+        required: false
+        type: string
+
+jobs:
+  generate_device_tree:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x' # twrpdtgen requires Python 3.8+
+
+      - name: Install cpio
+        run: sudo apt-get update && sudo apt-get install -y cpio
+
+      - name: Install twrpdtgen
+        run: pip3 install twrpdtgen
+
+      - name: Download Recovery/Boot Image
+        run: |
+          wget -O recovery.img ${{ github.event.inputs.image_url }}
+          if [ ! -f recovery.img ]; then
+            echo "Error: Image not downloaded successfully."
+            exit 1
+          fi
+
+      - name: Generate Device Tree
+        id: generate_dt
+        run: |
+          python3 -m twrpdtgen recovery.img
+          # twrpdtgen typically outputs to ./output/<manufacturer>/<codename>
+          # We need to find the exact path to the generated device tree.
+          GENERATED_PATH=$(find ./output -maxdepth 2 -type d -name "*" | grep -v "output$" | head -n 1)
+          if [ -z "$GENERATED_PATH" ]; then
+            echo "Error: Device tree not generated. Check your image."
+            exit 1
+          fi
+          echo "GENERATED_PATH=$GENERATED_PATH" >> $GITHUB_ENV
+
+      - name: Upload Generated Device Tree as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: twrp-device-tree-${{ github.event.inputs.device_name }}
+          path: ${{ env.GENERATED_PATH }}
+          retention-days: 7
+
+      - name: Push Device Tree to another Repository
+        if: github.event.inputs.output_repo != '' && github.event.inputs.output_branch != ''
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          
+          # Clone the target repository
+          git clone https://github.com/${{ github.event.inputs.output_repo }}.git target_repo
+          cd target_repo
+
+          # Create or switch to the target branch
+          git checkout -b ${{ github.event.inputs.output_branch }} || git checkout ${{ github.event.inputs.output_branch }}
+
+          # Remove existing contents (optional, depends on your workflow)
+          rm -rf * .github .git || true 
+
+          # Copy generated device tree files
+          cp -r ../${{ env.GENERATED_PATH }}/* .
+
+          # Add, commit, and push
+          git add .
+          git commit -m "feat: Auto-generated device tree for ${{ github.event.inputs.device_name }}" || echo "No changes to commit"
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.event.inputs.output_repo }}.git ${{ github.event.inputs.output_branch }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This is automatically provided by GitHub Actions
