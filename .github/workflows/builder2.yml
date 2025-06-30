@@ -1,13 +1,12 @@
-name: TWRP Device Tree Generator (with Link Input)
+name: TWRP Device Tree Generator ()
 
 on:
   workflow_dispatch:
     inputs:
       IMG_LINK:
-        description: 'boot.img veya recovery.img dosyası linki'
+        description: 'boot.img ya da recovery.img dosya linki (örnek: https://gofile.io/d/...)'
         required: true
-        default: ''
-        type: string
+        default: 'https://gofile.io/d/fa9c778c-91cd-4223-8a33-8972635368bd'
 
 jobs:
   build:
@@ -25,14 +24,16 @@ jobs:
       - name: twrpdtgen scriptini klonla
         run: git clone https://github.com/twrpdtgen/twrpdtgen.git
 
-      - name: Gereken modülleri yükle
+      - name: Bağımlılıkları yükle (requirements.txt yok)
+        run: pip install ./twrpdtgen
+
+      - name: Gerçek download linkini çöz ve boot.img olarak indir
         run: |
-          pip install -r twrpdtgen/requirements.txt
+          echo "GoFile linki: ${{ github.event.inputs.IMG_LINK }}"
+          wget -qO- "${{ github.event.inputs.IMG_LINK }}" | grep -oP '"directLink":"\K[^"]+' | sed 's/\\//g' > link.txt
+          curl -L "$(cat link.txt)" -o boot.img
 
-      - name: IMG dosyasını indir (boot.img olarak kaydedilecek)
-        run: wget -O boot.img "${{ github.event.inputs.IMG_LINK }}"
-
-      - name: TWRP tree üret
+      - name: TWRP tree oluştur
         run: |
           mkdir output
           python3 twrpdtgen/twrpdtgen.py boot.img --output output
