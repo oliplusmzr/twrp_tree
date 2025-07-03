@@ -1,10 +1,10 @@
-name: TWRP Device Tree Generator ALT
+name: TWRP Device Tree Generator Aly
 
 on:
   workflow_dispatch:
     inputs:
       IMG_LINK:
-        description: 'boot.img veya recovery.img dosya linki (örnek: https://filebin.net/.../recovery.img)'
+        description: 'boot.img veya recovery.img dosya linki'
         required: true
         default: 'https://filebin.net/goazefd6h87gmzbp/recovery.img'
 
@@ -13,26 +13,30 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Repo dosyalarını klonla
+      - name: Reponun klonlanması
         uses: actions/checkout@v3
 
-      - name: Python 3 kur
+      - name: Python kurulumu
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
-      - name: twrpdtgen scriptini klonla
+      - name: twrpdtgen scriptini indir
         run: git clone https://github.com/twrpdtgen/twrpdtgen.git
 
       - name: Bağımlılıkları yükle
         run: pip install ./twrpdtgen
 
-      - name: recovery.img dosyasını indir (boot.img olarak)
+      - name: recovery.img dosyasını indir (boot.img olarak kaydet)
         run: wget -O boot.img "${{ github.event.inputs.IMG_LINK }}"
 
-      - name: TWRP tree üret
+      - name: TWRP tree oluştur
         run: |
           mkdir output
           python3 twrpdtgen/twrpdtgen.py boot.img --output output
 
-      - name: Çıktıyı artifact
+      - name: Çıktıyı artifacts olarak kaydet
+        uses: actions/upload-artifact@v4
+        with:
+          name: twrp-tree
+          path: output/
