@@ -1,4 +1,4 @@
-name: TWRP Device Tree Generator
+name: TWRP Device Tree Generator Alternative
 
 on:
   workflow_dispatch:
