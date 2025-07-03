@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       IMG_LINK:
-        description: 'boot.img veya recovery.img direkt dosya linki (örnek: https://filebin.net/.../recovery.img)'
+        description: 'boot.img veya recovery.img dosya linki (örnek: https://filebin.net/.../recovery.img)'
         required: true
         default: 'https://filebin.net/goazefd6h87gmzbp/recovery.img'
 
@@ -22,3 +22,17 @@ jobs:
           python-version: '3.10'
 
       - name: twrpdtgen scriptini klonla
+        run: git clone https://github.com/twrpdtgen/twrpdtgen.git
+
+      - name: Bağımlılıkları yükle
+        run: pip install ./twrpdtgen
+
+      - name: recovery.img dosyasını indir (boot.img olarak)
+        run: wget -O boot.img "${{ github.event.inputs.IMG_LINK }}"
+
+      - name: TWRP tree üret
+        run: |
+          mkdir output
+          python3 twrpdtgen/twrpdtgen.py boot.img --output output
+
+      - name: Çıktıyı artifact
